@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Doppler Effect Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #060a0b;
+    --panel: #0d1517;
+    --panel-2: #0a1213;
+    --border: #1c2d2f;
+    --border-soft: #142023;
+    --text: #dcf3ea;
+    --text-dim: #6f8f8a;
+    --text-faint: #3f5c58;
+    --approach: #5ec8ff;
+    --approach-dim: #2c5a72;
+    --recede: #ff9a5c;
+    --recede-dim: #7a4a2c;
+    --neutral: #3df2c4;
+    --neutral-dim: #1e6f5a;
+    --grid: rgba(61, 242, 196, 0.07);
+    --amber-glow: 0 0 18px rgba(61,242,196,0.25);
+  }
+  *{ box-sizing:border-box; }
+  html,body{
+    margin:0; padding:0; background:var(--bg); color:var(--text);
+    font-family:'IBM Plex Mono', monospace;
+    -webkit-font-smoothing:antialiased;
+  }
+  body{
+    min-height:100vh;
+    background-image:
+      radial-gradient(circle at 20% 0%, rgba(61,242,196,0.05), transparent 45%),
+      radial-gradient(circle at 90% 100%, rgba(94,200,255,0.04), transparent 40%);
+    padding: 28px 18px 60px;
+  }
+  .wrap{ max-width: 980px; margin: 0 auto; }
+
+  header{ margin-bottom: 22px; }
+  .eyebrow{
+    font-size: 11px; letter-spacing: 0.28em; text-transform: uppercase;
+    color: var(--neutral); opacity:0.85; margin-bottom: 8px;
+    display:flex; align-items:center; gap:10px;
+  }
+  .eyebrow::before{
+    content:""; width:7px; height:7px; border-radius:50%;
+    background: var(--neutral); box-shadow: 0 0 8px var(--neutral);
+    display:inline-block;
+  }
+  h1{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700; font-size: clamp(26px, 4.2vw, 38px);
+    margin: 0 0 10px; letter-spacing: -0.01em; color:#f0fffa;
+  }
+  header p{
+    color: var(--text-dim); font-size: 13.5px; line-height:1.6;
+    max-width: 640px; margin: 0;
+  }
+  header code{
+    color: var(--neutral); background: rgba(61,242,196,0.08);
+    padding: 1px 6px; border-radius: 4px; font-size: 12.5px;
+  }
+
+  .panel{
+    background: linear-gradient(180deg, var(--panel), var(--panel-2));
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.02) inset, 0 20px 40px -20px rgba(0,0,0,0.6);
+    overflow:hidden;
+  }
+  .stage{ padding: 6px; position:relative; }
+  canvas{ display:block; width:100%; height:auto; }
+  #simCanvas{ border-radius: 10px 10px 0 0; background: #05090a; }
+  .divider{ height:1px; background: var(--border-soft); margin: 0; }
+  #graphCanvas{ border-radius: 0 0 10px 10px; background: #050b0c; }
+
+  .legend{
+    position:absolute; top: 16px; left: 16px;
+    display:flex; gap:16px; font-size: 10.5px; letter-spacing:0.05em;
+    text-transform:uppercase; color: var(--text-dim);
+  }
+  .legend span{ display:flex; align-items:center; gap:6px; }
+  .swatch{ width:10px; height:10px; border-radius:50%; display:inline-block; }
+  .swatch.approach{ background: var(--approach); box-shadow:0 0 6px var(--approach); }
+  .swatch.recede{ background: var(--recede); box-shadow:0 0 6px var(--recede); }
+
+  .readouts{
+    display:grid; grid-template-columns: repeat(4, 1fr);
+    gap: 1px; background: var(--border-soft);
+    border-top: 1px solid var(--border-soft);
+  }
+  .readout{
+    background: var(--panel-2); padding: 14px 16px;
+  }
+  .readout .lbl{
+    font-size: 10px; letter-spacing:0.14em; text-transform:uppercase;
+    color: var(--text-faint); margin-bottom: 6px;
+  }
+  .readout .val{
+    font-family:'Space Grotesk', sans-serif; font-weight:600;
+    font-size: 21px; color: var(--text);
+    display:flex; align-items:baseline; gap:5px;
+  }
+  .readout .val .unit{ font-size:12px; color:var(--text-dim); font-weight:500; }
+  #valFobs.shift-approach{ color: var(--approach); text-shadow: 0 0 14px rgba(94,200,255,0.35); }
+  #valFobs.shift-recede{ color: var(--recede); text-shadow: 0 0 14px rgba(255,154,92,0.3); }
+
+  .controls{
+    margin-top: 18px;
+    background: linear-gradient(180deg, var(--panel), var(--panel-2));
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 20px 20px;
+  }
+  .ctrl-grid{
+    display:grid; grid-template-columns: repeat(3, 1fr);
+    gap: 22px 26px;
+  }
+  @media (max-width: 720px){
+    .ctrl-grid{ grid-template-columns: 1fr; }
+    .readouts{ grid-template-columns: repeat(2, 1fr); }
+  }
+  .field .row{
+    display:flex; justify-content:space-between; align-items:baseline;
+    margin-bottom: 8px;
+  }
+  .field label{
+    font-size: 11px; letter-spacing: 0.1em; text-transform:uppercase;
+    color: var(--text-dim);
+  }
+  .field .live{
+    font-family:'Space Grotesk', sans-serif; font-size: 14px; font-weight:600;
+    color: var(--neutral);
+  }
+  input[type=range]{
+    -webkit-appearance:none; width:100%; height:4px; border-radius:2px;
+    background: var(--border); outline:none; cursor:pointer;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:15px; height:15px; border-radius:50%;
+    background: var(--neutral); box-shadow: 0 0 0 3px rgba(61,242,196,0.15), 0 0 8px rgba(61,242,196,0.5);
+    cursor:pointer; margin-top:-1px;
+  }
+  input[type=range]::-moz-range-thumb{
+    width:15px; height:15px; border-radius:50%; border:none;
+    background: var(--neutral); box-shadow: 0 0 8px rgba(61,242,196,0.5); cursor:pointer;
+  }
+
+  .btnrow{ display:flex; gap:10px; margin-top: 20px; align-items:center; }
+  button{
+    font-family:'IBM Plex Mono', monospace; font-size: 12.5px; letter-spacing:0.06em;
+    text-transform:uppercase; padding: 10px 18px; border-radius:8px;
+    border:1px solid var(--border); background: var(--panel-2); color: var(--text);
+    cursor:pointer; transition: all .15s ease;
+  }
+  button:hover{ border-color: var(--neutral-dim); color:#fff; }
+  #playBtn{
+    background: rgba(61,242,196,0.1); border-color: var(--neutral-dim); color: var(--neutral);
+    min-width: 110px; font-weight:600;
+  }
+  #playBtn:hover{ background: rgba(61,242,196,0.18); }
+  .hint{ font-size: 11.5px; color: var(--text-faint); margin-left:auto; text-align:right; max-width:280px; }
+
+  footer{ margin-top: 22px; font-size: 12px; color: var(--text-faint); line-height:1.7; }
+  footer .formula{
+    color: var(--text-dim); background: var(--panel-2); border:1px solid var(--border-soft);
+    padding: 10px 14px; border-radius: 8px; display:inline-block; margin-top:8px;
+    font-size: 12.5px;
+  }
+  footer .formula b{ color: var(--neutral); font-weight:600; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">Acoustic Wave Propagation</div>
+    <h1>Doppler Effect Simulator</h1>
+    <p>A source emits sound at a fixed frequency while flying past a stationary observer at perpendicular offset <code>b</code>. Watch the wavefronts compress ahead of the source and stretch behind it as speed approaches the speed of sound.</p>
+  </header>
+
+  <div class="panel">
+    <div class="stage">
+      <div class="legend">
+        <span><i class="swatch approach"></i>emitted approaching</span>
+        <span><i class="swatch recede"></i>emitted receding</span>
+      </div>
+      <canvas id="simCanvas"></canvas>
+    </div>
+    <div class="divider"></div>
+    <div class="stage" style="padding-top:2px;">
+      <canvas id="graphCanvas"></canvas>
+    </div>
+
+    <div class="readouts">
+      <div class="readout">
+        <div class="lbl">Observed Frequency</div>
+        <div class="val" id="valFobs">— <span class="unit">Hz</span></div>
+      </div>
+      <div class="readout">
+        <div class="lbl">Doppler Ratio f&#8320;/f&#8347;</div>
+        <div class="val" id="valRatio">—</div>
+      </div>
+      <div class="readout">
+        <div class="lbl">Radial Velocity</div>
+        <div class="val" id="valRadial">— <span class="unit">%c</span></div>
+      </div>
+      <div class="readout">
+        <div class="lbl">Distance to Source</div>
+        <div class="val" id="valDist">— <span class="unit">b·units</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="ctrl-grid">
+      <div class="field">
+        <div class="row"><label>Source Speed (Mach)</label><span class="live" id="liveMach">0.50 c</span></div>
+        <input type="range" id="machSlider" min="0.05" max="0.97" step="0.01" value="0.5">
+      </div>
+      <div class="field">
+        <div class="row"><label>Path Offset (b)</label><span class="live" id="liveOffset">60 px</span></div>
+        <input type="range" id="offsetSlider" min="18" max="170" step="1" value="60">
+      </div>
+      <div class="field">
+        <div class="row"><label>Source Frequency</label><span class="live" id="liveFreq">480 Hz</span></div>
+        <input type="range" id="freqSlider" min="150" max="1400" step="10" value="480">
+      </div>
+    </div>
+    <div class="btnrow">
+      <button id="playBtn">⏸ Pause</button>
+      <button id="resetBtn">⟲ Reset</button>
+      <div class="hint">Rings mark wavefronts, not literal audio cycles — spacing shows compression, not the true acoustic wavelength.</div>
+    </div>
+  </div>
+
+  <footer>
+    Classical (non-relativistic) Doppler shift for a moving source and stationary observer:
+    <div class="formula"><b>f_obs</b> = f_source · c / (c + v_radial)</div>
+    <div style="margin-top:8px;">where <b style="color:var(--text-dim)">v_radial</b> is the rate of change of source–observer distance — negative while approaching, positive while receding. At closest approach v_radial crosses zero, which is why observed frequency drops sharply through f_source right as the source passes.</div>
+  </footer>
+
+</div>
+
+<script>
+(function(){
+  const simCanvas = document.getElementById('simCanvas');
+  const graphCanvas = document.getElementById('graphCanvas');
+  const sctx = simCanvas.getContext('2d');
+  const gctx = graphCanvas.getContext('2d');
+
+  const machSlider = document.getElementById('machSlider');
+  const offsetSlider = document.getElementById('offsetSlider');
+  const freqSlider = document.getElementById('freqSlider');
+  const liveMach = document.getElementById('liveMach');
+  const liveOffset = document.getElementById('liveOffset');
+  const liveFreq = document.getElementById('liveFreq');
+  const playBtn = document.getElementById('playBtn');
+  const resetBtn = document.getElementById('resetBtn');
+
+  const valFobs = document.getElementById('valFobs');
+  const valRatio = document.getElementById('valRatio');
+  const valRadial = document.getElementById('valRadial');
+  const valDist = document.getElementById('valDist');
+
+  // ---- constants (all in "sim pixels" — see note: only ratios matter physically) ----
+  const C_PX = 230;           // wavefront propagation speed (px/s) — "speed of sound"
+  const EMIT_INTERVAL = 0.34; // seconds between visual wavefront rings
+  const HISTORY_WINDOW = 9;   // seconds shown on the strip chart
+
+  let CSS_W = 900, CSS_H = 380, GRAPH_H = 190;
+  let DPR = Math.max(1, window.devicePixelRatio || 1);
+
+  function sizeCanvases(){
+    const rect = simCanvas.getBoundingClientRect();
+    CSS_W = simCanvas.parentElement.clientWidth;
+    CSS_H = Math.round(CSS_W * 0.42);
+    GRAPH_H = Math.round(CSS_W * 0.21);
+    DPR = Math.max(1, window.devicePixelRatio || 1);
+
+    simCanvas.width = CSS_W * DPR; simCanvas.height = CSS_H * DPR;
+    simCanvas.style.height = CSS_H + 'px';
+    sctx.setTransform(DPR,0,0,DPR,0,0);
+
+    graphCanvas.width = CSS_W * DPR; graphCanvas.height = GRAPH_H * DPR;
+    graphCanvas.style.height = GRAPH_H + 'px';
+    gctx.setTransform(DPR,0,0,DPR,0,0);
+  }
+
+  let state = {
+    mach: parseFloat(machSlider.value),
+    offset: parseFloat(offsetSlider.value),
+    freq: parseFloat(freqSlider.value),
+    playing: true,
+    simTime: 0,
+    sourceX: 0,
+    lastEmit: -999,
+    rings: [],
+    history: []
+  };
+
+  function observerPos(){ return { x: CSS_W * 0.24, y: CSS_H / 2 }; }
+  function sourceY(){ return CSS_H/2 - state.offset; }
+
+  function resetSim(){
+    state.simTime = 0;
+    state.sourceX = -80;
+    state.lastEmit = -999;
+    state.rings = [];
+    state.history = [];
+  }
+
+  function computeInstant(sourceX){
+    const obs = observerPos();
+    const dx = sourceX - obs.x;
+    const dy = sourceY() - obs.y;
+    const r = Math.sqrt(dx*dx + dy*dy) || 0.0001;
+    const vRadialRatio = state.mach * (dx / r); // v_radial / c
+    const fobs = state.freq / (1 + vRadialRatio);
+    return { dx, dy, r, vRadialRatio, fobs };
+  }
+
+  function fmt(n, d){ return n.toLocaleString(undefined, {minimumFractionDigits:d, maximumFractionDigits:d}); }
+
+  function updateReadouts(inst){
+    valFobs.innerHTML = fmt(inst.fobs,0) + ' <span class="unit">Hz</span>';
+    valFobs.classList.remove('shift-approach','shift-recede');
+    if (inst.vRadialRatio < -0.01) valFobs.classList.add('shift-approach');
+    else if (inst.vRadialRatio > 0.01) valFobs.classList.add('shift-recede');
+
+    valRatio.textContent = fmt(inst.fobs/state.freq, 2) + '×';
+    valRadial.innerHTML = (inst.vRadialRatio>=0?'+':'') + fmt(inst.vRadialRatio*100,1) + ' <span class="unit">%c</span>';
+    valDist.innerHTML = fmt(inst.r/state.offset, 2) + ' <span class="unit">b·units</span>';
+  }
+
+  // ---------- drawing: simulation stage ----------
+  function drawSim(inst){
+    sctx.clearRect(0,0,CSS_W,CSS_H);
+
+    // background grid
+    sctx.strokeStyle = 'rgba(61,242,196,0.055)';
+    sctx.lineWidth = 1;
+    const gridStep = 40;
+    for(let x=0;x<CSS_W;x+=gridStep){ sctx.beginPath(); sctx.moveTo(x,0); sctx.lineTo(x,CSS_H); sctx.stroke(); }
+    for(let y=0;y<CSS_H;y+=gridStep){ sctx.beginPath(); sctx.moveTo(0,y); sctx.lineTo(CSS_W,y); sctx.stroke(); }
+
+    const obs = observerPos();
+
+    // rings
+    const maxR = Math.hypot(CSS_W, CSS_H) * 1.05;
+    for(const ring of state.rings){
+      const age = state.simTime - ring.born;
+      const rad = age * C_PX;
+      if (rad > maxR) continue;
+      const alpha = Math.max(0, 1 - rad/maxR) * 0.55;
+      sctx.beginPath();
+      sctx.arc(ring.x, ring.y, rad, 0, Math.PI*2);
+      sctx.strokeStyle = ring.approaching
+        ? `rgba(94,200,255,${alpha})`
+        : `rgba(255,154,92,${alpha})`;
+      sctx.lineWidth = 1.4;
+      sctx.stroke();
+    }
+
+    // path line (dotted)
+    sctx.setLineDash([2,6]);
+    sctx.strokeStyle = 'rgba(220,243,234,0.15)';
+    sctx.beginPath();
+    sctx.moveTo(0, sourceY());
+    sctx.lineTo(CSS_W, sourceY());
+    sctx.stroke();
+    sctx.setLineDash([]);
+
+    // line of sight
+    sctx.setLineDash([5,5]);
+    sctx.strokeStyle = inst.vRadialRatio < 0 ? 'rgba(94,200,255,0.55)' : 'rgba(255,154,92,0.55)';
+    sctx.lineWidth = 1.3;
+    sctx.beginPath();
+    sctx.moveTo(obs.x, obs.y);
+    sctx.lineTo(state.sourceX, sourceY());
+    sctx.stroke();
+    sctx.setLineDash([]);
+
+    // observer icon
+    sctx.beginPath();
+    sctx.arc(obs.x, obs.y, 6, 0, Math.PI*2);
+    sctx.fillStyle = '#dcf3ea';
+    sctx.fill();
+    sctx.beginPath();
+    sctx.arc(obs.x, obs.y, 11, 0, Math.PI*2);
+    sctx.strokeStyle = 'rgba(220,243,234,0.35)';
+    sctx.lineWidth = 1.5;
+    sctx.stroke();
+    sctx.fillStyle = 'rgba(220,243,234,0.6)';
+    sctx.font = '10px "IBM Plex Mono", monospace';
+    sctx.textAlign = 'center';
+    sctx.fillText('OBSERVER', obs.x, obs.y + 28);
+
+    // source icon (triangle pointing direction of travel)
+    const sx = state.sourceX, sy = sourceY();
+    const dir = 1; // always moving +x
+    sctx.save();
+    sctx.translate(sx, sy);
+    sctx.rotate(dir>0?0:Math.PI);
+    const glowColor = inst.vRadialRatio < 0 ? '#5ec8ff' : '#ff9a5c';
+    sctx.shadowColor = glowColor;
+    sctx.shadowBlur = 14;
+    sctx.beginPath();
+    sctx.moveTo(9,0); sctx.lineTo(-7,6); sctx.lineTo(-7,-6); sctx.closePath();
+    sctx.fillStyle = glowColor;
+    sctx.fill();
+    sctx.restore();
+    sctx.fillStyle = 'rgba(220,243,234,0.6)';
+    sctx.textAlign = 'center';
+    sctx.fillText('SOURCE', sx, sy - 16);
+
+    // offset bracket
+    sctx.strokeStyle = 'rgba(220,243,234,0.25)';
+    sctx.lineWidth = 1;
+    sctx.beginPath();
+    sctx.moveTo(obs.x, obs.y); sctx.lineTo(obs.x, sy);
+    sctx.stroke();
+    sctx.fillStyle = 'rgba(220,243,234,0.45)';
+    sctx.font = '10px "IBM Plex Mono", monospace';
+    sctx.textAlign = 'left';
+    sctx.fillText('b', obs.x + 5, (obs.y+sy)/2);
+  }
+
+  // ---------- drawing: graph ----------
+  let graphYMax = 1000;
+  function recalcGraphRange(){
+    const denom = Math.max(0.06, 1 - state.mach*0.995);
+    graphYMax = Math.min(state.freq * 8, state.freq/denom) * 1.05;
+  }
+
+  function drawGraph(){
+    gctx.clearRect(0,0,CSS_W,GRAPH_H);
+    const padL = 46, padR = 14, padT = 14, padB = 22;
+    const w = CSS_W - padL - padR, h = GRAPH_H - padT - padB;
+
+    // grid
+    gctx.strokeStyle = 'rgba(61,242,196,0.06)';
+    gctx.lineWidth = 1;
+    for(let i=0;i<=4;i++){
+      const y = padT + h*i/4;
+      gctx.beginPath(); gctx.moveTo(padL,y); gctx.lineTo(padL+w,y); gctx.stroke();
+    }
+
+    // f_source reference line
+    const baseY = padT + h * (1 - state.freq/graphYMax);
+    gctx.strokeStyle = 'rgba(220,243,234,0.3)';
+    gctx.setLineDash([3,4]);
+    gctx.beginPath(); gctx.moveTo(padL, baseY); gctx.lineTo(padL+w, baseY); gctx.stroke();
+    gctx.setLineDash([]);
+    gctx.fillStyle = 'rgba(220,243,234,0.4)';
+    gctx.font = '10px "IBM Plex Mono", monospace';
+    gctx.textAlign = 'left';
+    gctx.fillText('f source', padL + 6, baseY - 5);
+
+    // y axis labels
+    gctx.textAlign = 'right';
+    gctx.fillStyle = 'rgba(220,243,234,0.35)';
+    for(let i=0;i<=2;i++){
+      const val = graphYMax * (1 - i/2);
+      const y = padT + h*i/2;
+      gctx.fillText(Math.round(val), padL - 8, y+3);
+    }
+
+    if (state.history.length > 1){
+      const tNow = state.simTime;
+      const tMin = tNow - HISTORY_WINDOW;
+
+      gctx.beginPath();
+      let started = false;
+      let lastPt = null;
+      for(const pt of state.history){
+        if (pt.t < tMin) continue;
+        const x = padL + w * (pt.t - tMin)/HISTORY_WINDOW;
+        const yNorm = Math.min(1, pt.f/graphYMax);
+        const y = padT + h * (1 - yNorm);
+        if(!started){ gctx.moveTo(x,y); started = true; } else { gctx.lineTo(x,y); }
+        lastPt = {x,y,approaching: pt.vr < 0};
+      }
+      const grad = gctx.createLinearGradient(padL,0,padL+w,0);
+      grad.addColorStop(0, '#5ec8ff');
+      grad.addColorStop(0.5, '#3df2c4');
+      grad.addColorStop(1, '#ff9a5c');
+      gctx.strokeStyle = grad;
+      gctx.lineWidth = 2;
+      gctx.shadowColor = 'rgba(61,242,196,0.4)';
+      gctx.shadowBlur = 6;
+      gctx.stroke();
+      gctx.shadowBlur = 0;
+
+      if(lastPt){
+        gctx.beginPath();
+        gctx.arc(lastPt.x, lastPt.y, 3.5, 0, Math.PI*2);
+        gctx.fillStyle = lastPt.approaching ? '#5ec8ff' : '#ff9a5c';
+        gctx.shadowColor = gctx.fillStyle;
+        gctx.shadowBlur = 10;
+        gctx.fill();
+        gctx.shadowBlur = 0;
+      }
+    }
+
+    // axis
+    gctx.strokeStyle = 'rgba(220,243,234,0.2)';
+    gctx.beginPath();
+    gctx.moveTo(padL, padT); gctx.lineTo(padL, padT+h); gctx.lineTo(padL+w, padT+h);
+    gctx.stroke();
+    gctx.fillStyle = 'rgba(220,243,234,0.35)';
+    gctx.textAlign = 'left';
+    gctx.fillText('time →', padL, GRAPH_H - 6);
+  }
+
+  // ---------- animation loop ----------
+  let lastTs = null;
+  function frame(ts){
+    if (lastTs === null) lastTs = ts;
+    let dt = (ts - lastTs)/1000;
+    lastTs = ts;
+    dt = Math.min(dt, 0.05);
+
+    if (state.playing){
+      state.simTime += dt;
+      const speedPx = state.mach * C_PX;
+      state.sourceX += speedPx * dt;
+      const wrapAt = CSS_W + 100;
+      if (state.sourceX > wrapAt){
+        state.sourceX = -80;
+        state.rings = [];
+      }
+
+      if (state.simTime - state.lastEmit >= EMIT_INTERVAL){
+        state.lastEmit = state.simTime;
+        const inst = computeInstant(state.sourceX);
+        state.rings.push({ x: state.sourceX, y: sourceY(), born: state.simTime, approaching: inst.vRadialRatio < -0.001 });
+      }
+
+      const inst = computeInstant(state.sourceX);
+      state.history.push({ t: state.simTime, f: inst.fobs, vr: inst.vRadialRatio });
+      const cutoff = state.simTime - HISTORY_WINDOW - 1;
+      while(state.history.length && state.history[0].t < cutoff) state.history.shift();
+    }
+
+    const inst = computeInstant(state.sourceX);
+    updateReadouts(inst);
+    drawSim(inst);
+    drawGraph();
+
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- controls ----------
+  machSlider.addEventListener('input', () => {
+    state.mach = parseFloat(machSlider.value);
+    liveMach.textContent = state.mach.toFixed(2) + ' c';
+    recalcGraphRange();
+  });
+  offsetSlider.addEventListener('input', () => {
+    state.offset = parseFloat(offsetSlider.value);
+    liveOffset.textContent = Math.round(state.offset) + ' px';
+  });
+  freqSlider.addEventListener('input', () => {
+    state.freq = parseFloat(freqSlider.value);
+    liveFreq.textContent = Math.round(state.freq) + ' Hz';
+    recalcGraphRange();
+  });
+  playBtn.addEventListener('click', () => {
+    state.playing = !state.playing;
+    playBtn.textContent = state.playing ? '⏸ Pause' : '▶ Play';
+  });
+  resetBtn.addEventListener('click', () => {
+    resetSim();
+  });
+
+  window.addEventListener('resize', sizeCanvases);
+
+  // init
+  liveMach.textContent = state.mach.toFixed(2) + ' c';
+  liveOffset.textContent = Math.round(state.offset) + ' px';
+  liveFreq.textContent = Math.round(state.freq) + ' Hz';
+  sizeCanvases();
+  recalcGraphRange();
+  resetSim();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
